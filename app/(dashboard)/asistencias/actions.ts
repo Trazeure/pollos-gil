@@ -20,6 +20,18 @@ export async function marcarAsistencia(
   return { success: true }
 }
 
+export async function borrarAsistencia(trabajadorId: string, fecha: string) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('asistencias')
+    .delete()
+    .eq('trabajador_id', trabajadorId)
+    .eq('fecha', fecha)
+  if (error) return { error: error.message }
+  revalidatePath('/asistencias')
+  return { success: true }
+}
+
 export async function getResumenMes(anio: number, mes: number) {
   const supabase = await createClient()
   const desde = `${anio}-${String(mes).padStart(2, '0')}-01`

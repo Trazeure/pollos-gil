@@ -4,8 +4,9 @@ import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { RecibimientoForm } from './_components/recibimiento-form'
-import { Package, TrendingUp, Calendar } from 'lucide-react'
+import { Package, TrendingUp, Calendar, FileDown } from 'lucide-react'
 
 export default async function InventarioPage() {
   const supabase = await createClient()
@@ -112,8 +113,8 @@ export default async function InventarioPage() {
               {historial.map((rec) => {
                 const items = rec.recibimiento_items ?? []
                 return (
-                  <div key={rec.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
-                    <div>
+                  <div key={rec.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                    <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 capitalize">
                         {format(parseISO(rec.fecha), "EEEE d 'de' MMMM", { locale: es })}
                       </p>
@@ -121,7 +122,14 @@ export default async function InventarioPage() {
                         {items.map((i: {tipo: string; kilos: number}) => `${i.tipo}: ${i.kilos}kg`).join(' · ')}
                       </p>
                     </div>
-                    <p className="text-sm font-bold text-gray-900">{formatCurrency(rec.total_dia)}</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <p className="text-sm font-bold text-gray-900">{formatCurrency(rec.total_dia)}</p>
+                      <Button variant="outline" size="sm" className="h-7 px-2 gap-1 text-xs" asChild>
+                        <a href={`/api/inventario/pdf?fecha=${rec.fecha}`} target="_blank" rel="noopener noreferrer">
+                          <FileDown className="h-3 w-3" />PDF
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 )
               })}

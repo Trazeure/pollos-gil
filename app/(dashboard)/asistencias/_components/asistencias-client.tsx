@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useTransition, useOptimistic } from 'react'
+import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, Minus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, Minus, Trash2, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { marcarAsistencia } from '../actions'
+import { marcarAsistencia, borrarAsistencia } from '../actions'
 import type { Trabajador, Asistencia, EstadoAsistencia } from '@/lib/types'
-import { format, addDays, subDays, parseISO } from 'date-fns'
+import { format, addDays, subDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 interface Props {
@@ -24,23 +24,7 @@ const ESTADOS = [
   { key: 'ausente' as EstadoAsistencia, label: 'Ausente', icon: XCircle, color: 'text-red-600', bg: 'bg-red-50 border-red-200 hover:bg-red-100' },
 ]
 
-function estadoBadge(estado: EstadoAsistencia | undefined) {
-  if (!estado) return null
-  const cfg = ESTADOS.find((e) => e.key === estado)
-  if (!cfg) return null
-  const Icon = cfg.icon
-  return (
-    <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium', cfg.bg, cfg.color)}>
-      <Icon className="h-3 w-3" />
-      {cfg.label}
-    </span>
-  )
-}
-
-function fmtFecha(date: Date) {
-  return format(date, 'yyyy-MM-dd')
-}
-
+function fmtFecha(date: Date) { return format(date, 'yyyy-MM-dd') }
 function fmtLabel(date: Date) {
   const today = fmtFecha(new Date())
   const d = fmtFecha(date)
@@ -55,7 +39,6 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
 
   const initMap: AsistenciaMap = {}
   asistenciasHoy.forEach((a) => { initMap[a.trabajador_id] = a.estado })
-
   const [asistencias, setAsistencias] = useState<AsistenciaMap>(initMap)
 
   function goDay(delta: number) {
@@ -65,7 +48,6 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
   function handleMarcar(trabajadorId: string, estado: EstadoAsistencia) {
     const prev = asistencias[trabajadorId]
     setAsistencias((m) => ({ ...m, [trabajadorId]: estado }))
-
     startTransition(async () => {
       const result = await marcarAsistencia(trabajadorId, fmtFecha(selectedDate), estado)
       if (result.error) {
@@ -76,10 +58,28 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
     })
   }
 
+  function handleBorrar(trabajadorId: string) {
+    const prev = asistencias[trabajadorId]
+    setAsistencias((m) => { const next = { ...m }; delete next[trabajadorId]; return next })
+    startTransition(async () => {
+      const result = await borrarAsistencia(trabajadorId, fmtFecha(selectedDate))
+      if (result.error) {
+        toast.error(result.error)
+        if (prev) setAsistencias((m) => ({ ...m, [trabajadorId]: prev }))
+      } else {
+        toast.success('Asistencia eliminada')
+      }
+    })
+  }
+
   const presentes = Object.values(asistencias).filter((e) => e === 'presente').length
   const retardos = Object.values(asistencias).filter((e) => e === 'retardo').length
   const ausentes = Object.values(asistencias).filter((e) => e === 'ausente').length
   const sinRegistro = trabajadores.length - presentes - retardos - ausentes
+
+  const fechaISO = fmtFecha(selectedDate)
+  const mesActual = selectedDate.getMonth() + 1
+  const anioActual = selectedDate.getFullYear()
 
   return (
     <div className="space-y-5">
@@ -97,9 +97,46 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
           size="icon"
           className="h-8 w-8"
           onClick={() => goDay(1)}
-          disabled={fmtFecha(selectedDate) >= fmtFecha(new Date())}
+          disabled={fechaISO >= fmtFecha(new Date())}
         >
           <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Botones PDF */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-xs"
+          asChild
+        >
+          <a href={`/api/asistencias/pdf?tipo=semanal&fecha=${fechaISO}`} target="_blank" rel="noopener noreferrer">
+            <FileDown className="h-3.5 w-3.5" />
+            PDF Semanal
+          </a>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-xs"
+          asChild
+        >
+          <a href={`/api/asistencias/pdf?tipo=mensual&mes=${mesActual}&anio=${anioActual}`} target="_blank" rel="noopener noreferrer">
+            <FileDown className="h-3.5 w-3.5" />
+            PDF Mensual
+          </a>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-xs"
+          asChild
+        >
+          <a href={`/api/asistencias/pdf?tipo=anual&anio=${anioActual}`} target="_blank" rel="noopener noreferrer">
+            <FileDown className="h-3.5 w-3.5" />
+            PDF Anual
+          </a>
         </Button>
       </div>
 
@@ -133,7 +170,7 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
               const initials = t.nombre.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
 
               return (
-                <div key={t.id} className="px-4 py-3.5 flex items-center gap-4">
+                <div key={t.id} className="px-4 py-3.5 flex items-center gap-3">
                   {/* Avatar */}
                   <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white font-bold text-sm shrink-0">
                     {initials}
@@ -145,17 +182,23 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
                     <p className="text-xs text-gray-400">{t.puesto}</p>
                   </div>
 
-                  {/* Estado actual */}
-                  <div className="hidden sm:block mr-2">
-                    {estadoActual ? estadoBadge(estadoActual) : (
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                        <Minus className="h-3 w-3" />Sin marcar
-                      </span>
-                    )}
-                  </div>
+                  {/* Estado actual (desktop) */}
+                  {estadoActual ? (
+                    <span className={cn(
+                      'hidden sm:inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium mr-1',
+                      ESTADOS.find(e => e.key === estadoActual)?.bg,
+                      ESTADOS.find(e => e.key === estadoActual)?.color,
+                    )}>
+                      {estadoActual}
+                    </span>
+                  ) : (
+                    <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 mr-1">
+                      <Minus className="h-3 w-3" />Sin marcar
+                    </span>
+                  )}
 
-                  {/* Botones */}
-                  <div className="flex gap-1.5 shrink-0">
+                  {/* Botones marcar */}
+                  <div className="flex gap-1 shrink-0">
                     {ESTADOS.map(({ key, label, icon: Icon, color, bg }) => (
                       <button
                         key={key}
@@ -165,13 +208,25 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
                         className={cn(
                           'h-8 w-8 rounded-lg border flex items-center justify-center transition-all',
                           estadoActual === key
-                            ? cn(bg, color, 'shadow-sm scale-110')
-                            : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
+                            ? cn(bg, color, 'shadow-sm scale-110 border-2')
+                            : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
                         )}
                       >
                         <Icon className="h-4 w-4" />
                       </button>
                     ))}
+
+                    {/* Borrar registro */}
+                    {estadoActual && (
+                      <button
+                        onClick={() => handleBorrar(t.id)}
+                        disabled={isPending}
+                        title="Quitar registro"
+                        className="h-8 w-8 rounded-lg border bg-white border-gray-200 text-gray-300 hover:text-red-500 hover:border-red-200 flex items-center justify-center transition-all ml-1"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -181,7 +236,7 @@ export function AsistenciasClient({ trabajadores, asistenciasHoy }: Props) {
       )}
 
       <p className="text-xs text-gray-300 text-center">
-        ✓ Presente · ⏰ Retardo · ✕ Ausente
+        ✓ Presente · ⏰ Retardo · ✕ Ausente · 🗑 Quitar registro
       </p>
     </div>
   )

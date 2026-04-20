@@ -112,10 +112,10 @@ export function RecibimientoForm({ fecha, existing }: Props) {
                   name={row.kilosKey}
                   type="number"
                   min="0"
-                  step="0.1"
+                  step="any"
                   value={values[row.kilosKey] || ''}
                   onChange={(e) => set(row.kilosKey, e.target.value)}
-                  placeholder="0"
+                  placeholder="0.000"
                   className="h-11 text-base text-center"
                 />
               </div>
