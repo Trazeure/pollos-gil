@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { openai } from '@/lib/openai'
+import { getOpenAI } from '@/lib/openai'
 
 const PROMPT = `Eres un experto en leer tickets de caja registradora de pollerías mexicanas.
 Analiza la imagen del ticket (corte X, Y o Z) y extrae todos los productos vendidos.
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Imagen requerida' }, { status: 400 })
     }
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {

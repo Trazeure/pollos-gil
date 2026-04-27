@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { openai } from '@/lib/openai'
+import { getOpenAI } from '@/lib/openai'
 import { createClient } from '@/lib/supabase/server'
 import { subWeeks, format } from 'date-fns'
 
@@ -70,7 +70,7 @@ Responde ÚNICAMENTE con un JSON válido:
   "razonamiento": "análisis breve de 2-3 oraciones en español mexicano"
 }`
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
