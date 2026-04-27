@@ -58,7 +58,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data)
   } catch (err) {
-    console.error('Error extraer-corte-z:', err)
-    return NextResponse.json({ error: 'Error al procesar la imagen' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('Error extraer-corte-z:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

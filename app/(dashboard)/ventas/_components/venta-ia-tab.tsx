@@ -53,8 +53,8 @@ export function VentaIATab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: image.base64, mimeType: image.mimeType }),
       })
-      if (!res.ok) throw new Error()
       const data: ExtractedData = await res.json()
+      if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? 'Error desconocido')
       const validItems = (data.items ?? []).filter((i) => i.cantidad > 0)
       setItems(validItems)
       setAnalyzed(true)
@@ -63,8 +63,8 @@ export function VentaIATab() {
       } else {
         toast.success(`${validItems.length} productos extraídos`)
       }
-    } catch {
-      toast.error('Error al analizar. Verifica tu API key de OpenAI.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al analizar')
     } finally {
       setAnalyzing(false)
     }
