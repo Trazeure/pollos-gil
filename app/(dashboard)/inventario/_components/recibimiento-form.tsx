@@ -3,13 +3,14 @@
 import { useFormState, useFormStatus } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Save, Loader2, Calculator } from 'lucide-react'
+import { Save, Loader2, Calculator, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { guardarRecibimiento } from '../actions'
 import { formatCurrency } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface RecibimientoData {
   fecha: string
@@ -19,6 +20,8 @@ interface RecibimientoData {
   seara_precio: number
   pollo_kilos: number
   pollo_precio: number
+  otras_monto?: number
+  otras_descripcion?: string
 }
 
 function SaveButton() {
@@ -50,7 +53,10 @@ export function RecibimientoForm({ fecha, existing }: Props) {
     seara_precio: existing?.seara_precio ?? 0,
     pollo_kilos: existing?.pollo_kilos ?? 0,
     pollo_precio: existing?.pollo_precio ?? 0,
+    otras_monto: existing?.otras_monto ?? 0,
   })
+  const [otrasDesc, setOtrasDesc] = useState(existing?.otras_descripcion ?? '')
+  const [otrasEnabled, setOtrasEnabled] = useState((existing?.otras_monto ?? 0) > 0)
 
   useEffect(() => {
     if (state && 'ok' in state && state.ok) {
@@ -89,7 +95,8 @@ export function RecibimientoForm({ fecha, existing }: Props) {
   ]
 
   const subtotals = rows.map((r) => values[r.kilosKey] * values[r.precioKey])
-  const total = subtotals.reduce((a, b) => a + b, 0)
+  const otrasTotal = otrasEnabled ? values.otras_monto : 0
+  const total = subtotals.reduce((a, b) => a + b, 0) + otrasTotal
 
   return (
     <form action={formAction} className="space-y-4">
@@ -145,6 +152,82 @@ export function RecibimientoForm({ fecha, existing }: Props) {
           </CardContent>
         </Card>
       ))}
+
+      {/* Otras compras */}
+      {!otrasEnabled && (
+        <>
+          <input type="hidden" name="otras_monto" value="0" />
+          <input type="hidden" name="otras_descripcion" value="" />
+          <button
+            type="button"
+            onClick={() => setOtrasEnabled(true)}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-700 transition-colors py-1"
+          >
+            <Plus className="h-4 w-4" />
+            Agregar otras compras
+          </button>
+        </>
+      )}
+
+      {otrasEnabled && (
+        <Card className="border border-purple-200 bg-purple-50 shadow-none">
+          <CardHeader className="pb-3 pt-4 px-4">
+            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-purple-400" />
+                Otras compras
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setOtrasEnabled(false)
+                  setValues((v) => ({ ...v, otras_monto: 0 }))
+                  setOtrasDesc('')
+                }}
+                className="text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">Descripción (opcional)</Label>
+                <Input
+                  name="otras_descripcion"
+                  type="text"
+                  value={otrasDesc}
+                  onChange={(e) => setOtrasDesc(e.target.value)}
+                  placeholder="Ej: Gasolina, empaque..."
+                  className="h-11 text-sm bg-white"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">Monto</Label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <Input
+                    name="otras_monto"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={values.otras_monto || ''}
+                    onChange={(e) => set('otras_monto', e.target.value)}
+                    placeholder="0.00"
+                    className="h-11 text-base pl-6 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+            {values.otras_monto > 0 && (
+              <p className={cn('text-right text-sm font-semibold text-purple-700 mt-2')}>
+                {formatCurrency(values.otras_monto)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Total */}
       <Card className="border-0 bg-gray-900 shadow-sm">

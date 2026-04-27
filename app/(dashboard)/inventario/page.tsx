@@ -6,7 +6,10 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { RecibimientoForm } from './_components/recibimiento-form'
+import { HistorialDeleteButton } from './_components/historial-delete-button'
 import { Package, TrendingUp, Calendar, FileDown } from 'lucide-react'
+
+type RecibimientoItem = { tipo: string; kilos: number; precio_kg: number; subtotal: number; descripcion?: string }
 
 export default async function InventarioPage() {
   const supabase = await createClient()
@@ -15,21 +18,18 @@ export default async function InventarioPage() {
 
   const today = format(new Date(), 'yyyy-MM-dd')
 
-  // Recibimiento de hoy
   const { data: hoy } = await supabase
     .from('recibimientos')
     .select('*, recibimiento_items(*)')
     .eq('fecha', today)
     .single()
 
-  // Historial últimos 14 días
   const { data: historial } = await supabase
     .from('recibimientos')
     .select('*, recibimiento_items(*)')
     .order('fecha', { ascending: false })
     .limit(14)
 
-  // Total semana actual
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const { data: semana } = await supabase
@@ -40,16 +40,22 @@ export default async function InventarioPage() {
 
   const totalSemana = semana?.reduce((a, r) => a + (r.total_dia ?? 0), 0) ?? 0
 
-  // Build existing data for form
+  const findItem = (tipo: string) =>
+    (hoy?.recibimiento_items as RecibimientoItem[] | undefined)?.find((i) => i.tipo === tipo)
+
+  const otrasItem = findItem('otras')
+
   const existing = hoy
     ? {
         fecha: hoy.fecha,
-        menudencia_kilos: hoy.recibimiento_items?.find((i: {tipo: string}) => i.tipo === 'menudencia')?.kilos ?? 0,
-        menudencia_precio: hoy.recibimiento_items?.find((i: {tipo: string}) => i.tipo === 'menudencia')?.precio_kg ?? 0,
-        seara_kilos: hoy.recibimiento_items?.find((i: {tipo: string}) => i.tipo === 'seara')?.kilos ?? 0,
-        seara_precio: hoy.recibimiento_items?.find((i: {tipo: string}) => i.tipo === 'seara')?.precio_kg ?? 0,
-        pollo_kilos: hoy.recibimiento_items?.find((i: {tipo: string}) => i.tipo === 'pollo')?.kilos ?? 0,
-        pollo_precio: hoy.recibimiento_items?.find((i: {tipo: string}) => i.tipo === 'pollo')?.precio_kg ?? 0,
+        menudencia_kilos: findItem('menudencia')?.kilos ?? 0,
+        menudencia_precio: findItem('menudencia')?.precio_kg ?? 0,
+        seara_kilos: findItem('seara')?.kilos ?? 0,
+        seara_precio: findItem('seara')?.precio_kg ?? 0,
+        pollo_kilos: findItem('pollo')?.kilos ?? 0,
+        pollo_precio: findItem('pollo')?.precio_kg ?? 0,
+        otras_monto: otrasItem?.subtotal ?? 0,
+        otras_descripcion: otrasItem?.descripcion ?? '',
       }
     : undefined
 
@@ -111,15 +117,23 @@ export default async function InventarioPage() {
           <Card className="border-0 shadow-sm overflow-hidden">
             <div className="divide-y">
               {historial.map((rec) => {
-                const items = rec.recibimiento_items ?? []
+                const items = (rec.recibimiento_items ?? []) as RecibimientoItem[]
+                const fechaLabel = format(parseISO(rec.fecha), "EEEE d 'de' MMMM", { locale: es })
                 return (
                   <div key={rec.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-900 capitalize">
-                        {format(parseISO(rec.fecha), "EEEE d 'de' MMMM", { locale: es })}
+                        {fechaLabel}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {items.map((i: {tipo: string; kilos: number}) => `${i.tipo}: ${i.kilos}kg`).join(' · ')}
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">
+                        {items
+                          .filter((i) => i.subtotal > 0)
+                          .map((i) =>
+                            i.tipo === 'otras'
+                              ? `${i.descripcion ?? 'Otras'}: ${formatCurrency(i.subtotal)}`
+                              : `${i.tipo}: ${i.kilos}kg`
+                          )
+                          .join(' · ')}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -129,6 +143,7 @@ export default async function InventarioPage() {
                           <FileDown className="h-3 w-3" />PDF
                         </a>
                       </Button>
+                      <HistorialDeleteButton id={rec.id} fecha={fechaLabel} />
                     </div>
                   </div>
                 )

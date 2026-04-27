@@ -5,6 +5,7 @@ interface InventarioItem {
   kilos: number
   precio_kg: number
   subtotal: number
+  descripcion?: string
 }
 
 interface InventarioPDFData {
@@ -43,6 +44,7 @@ const TIPO_LABELS: Record<string, string> = {
   menudencia: 'Menudencia',
   seara: 'Seara (Pechuga)',
   pollo: 'Pollo Entero',
+  otras: 'Otras compras',
 }
 
 function mxn(n: number) { return `$${n.toFixed(2)}` }
@@ -75,19 +77,23 @@ export function InventarioDocument({ data }: { data: InventarioPDFData }) {
 
         {/* Tabla */}
         <View style={S.tableHead}>
-          <Text style={[S.thText, S.cTipo]}>Tipo de Pollo</Text>
+          <Text style={[S.thText, S.cTipo]}>Concepto</Text>
           <Text style={[S.thText, S.cKilos]}>Kilos</Text>
           <Text style={[S.thText, S.cPrecio]}>Precio/kg</Text>
           <Text style={[S.thText, S.cSubtotal]}>Subtotal</Text>
         </View>
 
-        {data.items.filter(i => i.kilos > 0).map((item, idx) => (
+        {data.items.filter(i => i.subtotal > 0).map((item, idx) => (
           <View key={idx} style={idx % 2 === 0 ? S.tableRow : S.tableRowAlt}>
             <View style={[S.cTipo, S.tipoRow]}>
-              <Text>{TIPO_LABELS[item.tipo] ?? item.tipo}</Text>
+              <Text>
+                {item.tipo === 'otras'
+                  ? (item.descripcion || TIPO_LABELS.otras)
+                  : (TIPO_LABELS[item.tipo] ?? item.tipo)}
+              </Text>
             </View>
-            <Text style={S.cKilos}>{item.kilos.toFixed(3)} kg</Text>
-            <Text style={S.cPrecio}>{mxn(item.precio_kg)}</Text>
+            <Text style={S.cKilos}>{item.tipo === 'otras' ? '—' : `${item.kilos.toFixed(3)} kg`}</Text>
+            <Text style={S.cPrecio}>{item.tipo === 'otras' ? '—' : mxn(item.precio_kg)}</Text>
             <Text style={S.cSubtotal}>{mxn(item.subtotal)}</Text>
           </View>
         ))}

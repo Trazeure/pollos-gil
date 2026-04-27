@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
   if (error || !rec) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  const items = (rec.recibimiento_items as { tipo: string; kilos: number; precio_kg: number; subtotal: number }[]) ?? []
+  const items = (rec.recibimiento_items as { tipo: string; kilos: number; precio_kg: number; subtotal: number; descripcion?: string }[]) ?? []
 
   const pdfData = {
     fecha: rec.fecha,

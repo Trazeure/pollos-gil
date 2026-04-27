@@ -12,6 +12,8 @@ const RecibimientoSchema = z.object({
   seara_precio: z.coerce.number().min(0).default(0),
   pollo_kilos: z.coerce.number().min(0).default(0),
   pollo_precio: z.coerce.number().min(0).default(0),
+  otras_monto: z.coerce.number().min(0).default(0),
+  otras_descripcion: z.string().optional().default('Otras compras'),
 })
 
 export async function guardarRecibimiento(_prev: unknown, formData: FormData) {
@@ -23,6 +25,8 @@ export async function guardarRecibimiento(_prev: unknown, formData: FormData) {
     seara_precio: formData.get('seara_precio'),
     pollo_kilos: formData.get('pollo_kilos'),
     pollo_precio: formData.get('pollo_precio'),
+    otras_monto: formData.get('otras_monto'),
+    otras_descripcion: formData.get('otras_descripcion') ?? 'Otras compras',
   }
 
   const parsed = RecibimientoSchema.safeParse(raw)
@@ -34,14 +38,18 @@ export async function guardarRecibimiento(_prev: unknown, formData: FormData) {
 
   const d = parsed.data
 
-  const items = [
+  const items: { tipo: string; kilos: number; precio_kg: number; subtotal: number; descripcion?: string }[] = [
     { tipo: 'menudencia', kilos: d.menudencia_kilos, precio_kg: d.menudencia_precio, subtotal: d.menudencia_kilos * d.menudencia_precio },
     { tipo: 'seara',      kilos: d.seara_kilos,      precio_kg: d.seara_precio,      subtotal: d.seara_kilos * d.seara_precio },
     { tipo: 'pollo',      kilos: d.pollo_kilos,      precio_kg: d.pollo_precio,      subtotal: d.pollo_kilos * d.pollo_precio },
   ]
+
+  if (d.otras_monto > 0) {
+    items.push({ tipo: 'otras', kilos: 0, precio_kg: 0, subtotal: d.otras_monto, descripcion: d.otras_descripcion || 'Otras compras' })
+  }
+
   const total_dia = items.reduce((s, i) => s + i.subtotal, 0)
 
-  // Upsert recibimiento por fecha
   const { data: rec, error: recError } = await supabase
     .from('recibimientos')
     .upsert({ fecha: d.fecha, total_dia, created_by: user.id }, { onConflict: 'fecha' })
@@ -50,13 +58,25 @@ export async function guardarRecibimiento(_prev: unknown, formData: FormData) {
 
   if (recError || !rec) return { error: recError?.message ?? 'Error al guardar' }
 
-  // Borrar items anteriores y reinsertar
   await supabase.from('recibimiento_items').delete().eq('recibimiento_id', rec.id)
   const { error: itemsError } = await supabase
     .from('recibimiento_items')
     .insert(items.map((i) => ({ ...i, recibimiento_id: rec.id })))
 
   if (itemsError) return { error: itemsError.message }
+
+  revalidatePath('/inventario')
+  revalidatePath('/')
+  return { ok: true }
+}
+
+export async function eliminarRecibimiento(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { error } = await supabase.from('recibimientos').delete().eq('id', id)
+  if (error) return { error: error.message }
 
   revalidatePath('/inventario')
   revalidatePath('/')
