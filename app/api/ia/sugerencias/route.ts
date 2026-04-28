@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getOpenAI } from '@/lib/openai'
+import { getGemini } from '@/lib/gemini'
 import { createClient } from '@/lib/supabase/server'
 import { subWeeks, format } from 'date-fns'
 
@@ -18,7 +18,6 @@ export async function GET() {
       supabase.from('recibimientos').select('fecha, total_dia, recibimiento_items(*)').gte('fecha', desde).order('fecha'),
     ])
 
-    // Agregar ventas por producto
     const porProducto: Record<string, { total_cantidad: number; total_monto: number }> = {}
     ventas?.forEach((v) => {
       const items = (v.items as { producto_nombre: string; cantidad: number; subtotal: number }[]) ?? []
@@ -29,7 +28,6 @@ export async function GET() {
       })
     })
 
-    // Agregar inventario por tipo
     const porTipo: Record<string, { total_kilos: number; precio_promedio: number; dias: number }> = {}
     recibimientos?.forEach((r) => {
       const items = (r.recibimiento_items as { tipo: string; kilos: number; precio_kg: number }[]) ?? []
@@ -42,41 +40,25 @@ export async function GET() {
     })
 
     const prompt = `Eres un asesor de negocios especializado en pollerías mexicanas.
-Analiza los siguientes datos de Pollos Gil (Monclova, Coahuila) de las últimas 4 semanas y genera recomendaciones concretas.
+Analiza los datos de Pollos Gil (Monclova, Coahuila) de las últimas 4 semanas.
 
-VENTAS POR PRODUCTO (últimas 4 semanas):
-${JSON.stringify(porProducto, null, 2)}
+VENTAS POR PRODUCTO: ${JSON.stringify(porProducto)}
+INVENTARIO: ${JSON.stringify(porTipo)}
+REGISTROS: ${ventas?.length ?? 0} días de ventas, ${recibimientos?.length ?? 0} días de inventario.
 
-INVENTARIO RECIBIDO (últimas 4 semanas):
-${JSON.stringify(porTipo, null, 2)}
+Responde ÚNICAMENTE con este JSON sin texto extra:
+{"recomendaciones":["rec1","rec2","rec3","rec4"],"cantidad_sugerida_kg":{"menudencia":número,"seara":número,"pollo":número},"productos_estrella":["p1","p2","p3"],"productos_baja_rotacion":["p1","p2"],"razonamiento":"análisis breve"}`
 
-TOTAL DE REGISTROS: ${ventas?.length ?? 0} días de ventas, ${recibimientos?.length ?? 0} días de recibimiento.
-
-Responde ÚNICAMENTE con un JSON válido:
-{
-  "recomendaciones": [
-    "recomendación concreta 1",
-    "recomendación concreta 2",
-    "recomendación concreta 3",
-    "recomendación concreta 4"
-  ],
-  "cantidad_sugerida_kg": {
-    "menudencia": número (kg para la próxima semana),
-    "seara": número (kg para la próxima semana),
-    "pollo": número (kg para la próxima semana)
-  },
-  "productos_estrella": ["producto1", "producto2", "producto3"],
-  "productos_baja_rotacion": ["producto1", "producto2"],
-  "razonamiento": "análisis breve de 2-3 oraciones en español mexicano"
-}`
-
-    const completion = await getOpenAI().chat.completions.create({
+    const model = getGemini().getGenerativeModel({
       model: 'gemini-2.5-flash',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1000,
+      generationConfig: { thinkingConfig: { thinkingBudget: 0 } } as never,
     })
 
-    const data = JSON.parse(completion.choices[0].message.content ?? '{}')
+    const result = await model.generateContent(prompt)
+    const raw = result.response.text().trim()
+    const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+    const data = JSON.parse(cleaned)
+
     return NextResponse.json({ ...data, generado_en: new Date().toISOString() })
   } catch (err) {
     console.error('Error sugerencias:', err)
