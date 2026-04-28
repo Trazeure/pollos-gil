@@ -14,8 +14,7 @@ export default async function VentasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: productos }, { data: historial }] = await Promise.all([
-    supabase.from('productos').select('*').eq('activo', true).order('categoria').order('nombre'),
+  const [{ data: historial }] = await Promise.all([
     supabase.from('ventas').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }).limit(10),
   ])
 
@@ -56,7 +55,7 @@ export default async function VentasPage() {
         </TabsList>
 
         <TabsContent value="manual" className="mt-4">
-          <VentaForm productos={productos ?? []} />
+          <VentaForm />
         </TabsContent>
 
         <TabsContent value="ia" className="mt-4">
@@ -88,10 +87,12 @@ export default async function VentasPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">
-                        {items.slice(0, 3).map((i) => `${i.producto_nombre} ×${i.cantidad}`).join(' · ')}
-                        {items.length > 3 && ` +${items.length - 3} más`}
-                      </p>
+                      {items.length > 0 && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">
+                          {items.slice(0, 3).map((i) => `${i.producto_nombre} ×${i.cantidad}`).join(' · ')}
+                          {items.length > 3 && ` +${items.length - 3} más`}
+                        </p>
+                      )}
                     </div>
                     <p className="text-sm font-bold text-gray-900 shrink-0 ml-3">
                       {formatCurrency(venta.total)}

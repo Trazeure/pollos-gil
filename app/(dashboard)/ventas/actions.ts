@@ -59,3 +59,29 @@ export async function guardarVenta(_prev: unknown, formData: FormData) {
   revalidatePath('/')
   return { ok: true }
 }
+
+export async function guardarVentaSimple(_prev: unknown, formData: FormData) {
+  const fecha = formData.get('fecha') as string
+  const totalRaw = formData.get('total') as string
+  const total = parseFloat(totalRaw)
+
+  if (!fecha) return { error: 'Fecha requerida' }
+  if (!total || total <= 0) return { error: 'Ingresa un monto mayor a 0' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { error } = await supabase.from('ventas').insert({
+    fecha,
+    items: [],
+    total,
+    metodo: 'manual',
+    created_by: user.id,
+  })
+
+  if (error) return { error: error.message }
+  revalidatePath('/ventas')
+  revalidatePath('/')
+  return { ok: true }
+}

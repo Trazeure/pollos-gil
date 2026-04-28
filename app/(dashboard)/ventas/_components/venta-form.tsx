@@ -2,161 +2,85 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Save, Loader2, ShoppingCart, Minus, Plus } from 'lucide-react'
+import { DollarSign, Loader2, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { guardarVenta } from '../actions'
+import { guardarVentaSimple } from '../actions'
 import { formatCurrency } from '@/lib/utils'
-import type { Producto } from '@/lib/types'
 import { format } from 'date-fns'
 
-interface Props {
-  productos: Producto[]
-}
-
-interface ItemVenta {
-  producto_id: string
-  producto_nombre: string
-  cantidad: number
-  precio_unitario: number
-  subtotal: number
-}
-
-export function VentaForm({ productos }: Props) {
+export function VentaForm() {
   const today = format(new Date(), 'yyyy-MM-dd')
-  const [quantities, setQuantities] = useState<Record<string, number>>({})
+  const [total, setTotal] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  const set = (id: string, val: number) =>
-    setQuantities((prev) => ({ ...prev, [id]: Math.max(0, val) }))
-
-  const items: ItemVenta[] = productos
-    .filter((p) => p.activo && (quantities[p.id] ?? 0) > 0)
-    .map((p) => ({
-      producto_id: p.id,
-      producto_nombre: p.nombre,
-      cantidad: quantities[p.id] ?? 0,
-      precio_unitario: p.precio,
-      subtotal: (quantities[p.id] ?? 0) * p.precio,
-    }))
-
-  const total = items.reduce((s, i) => s + i.subtotal, 0)
-
   function handleSubmit() {
-    if (items.length === 0) {
-      toast.error('Agrega al menos un producto')
+    const monto = parseFloat(total)
+    if (!monto || monto <= 0) {
+      toast.error('Ingresa un monto válido')
       return
     }
     const fd = new FormData()
     fd.set('fecha', today)
-    fd.set('items', JSON.stringify(items))
+    fd.set('total', String(monto))
     startTransition(async () => {
-      const result = await guardarVenta(null, fd)
+      const result = await guardarVentaSimple(null, fd)
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success(`Venta guardada — Total: ${formatCurrency(total)}`)
-        setQuantities({})
+        toast.success(`Venta guardada — ${formatCurrency(monto)}`)
+        setTotal('')
       }
     })
   }
 
-  const byCategory: Record<string, Producto[]> = {}
-  productos
-    .filter((p) => p.activo)
-    .forEach((p) => {
-      if (!byCategory[p.categoria]) byCategory[p.categoria] = []
-      byCategory[p.categoria].push(p)
-    })
-
   return (
-    <div className="space-y-5">
-      {Object.entries(byCategory).map(([cat, prods]) => (
-        <div key={cat}>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-            {cat}
-          </h3>
-          <Card className="border-0 shadow-sm overflow-hidden">
-            <div className="divide-y">
-              {prods.map((p) => {
-                const qty = quantities[p.id] ?? 0
-                const subtotal = qty * p.precio
-                return (
-                  <div key={p.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
-                    <div className="flex-1 min-w-0 mr-3">
-                      <p className="text-sm font-medium text-gray-900 truncate">{p.nombre}</p>
-                      <p className="text-xs text-gray-400">
-                        {formatCurrency(p.precio)}/{p.unidad}
-                        {subtotal > 0 && (
-                          <span className="ml-2 text-green-600 font-medium">
-                            = {formatCurrency(subtotal)}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => set(p.id, qty - 1)}
-                        disabled={qty === 0}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <input
-                        type="number"
-                        value={qty || ''}
-                        onChange={(e) => set(p.id, parseInt(e.target.value) || 0)}
-                        className="w-12 text-center text-sm font-semibold border border-gray-200 rounded-lg h-8 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        min="0"
-                        placeholder="0"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => set(p.id, qty + 1)}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+    <div className="space-y-4">
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-red-50 rounded-xl flex items-center justify-center shrink-0">
+              <DollarSign className="h-5 w-5 text-red-500" />
             </div>
-          </Card>
-        </div>
-      ))}
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Venta neta del día</p>
+              <p className="text-xs text-gray-400">Ingresa el total vendido</p>
+            </div>
+          </div>
 
-      {/* Resumen */}
-      {items.length > 0 && (
-        <Card className="border-0 bg-gray-900 shadow-sm">
-          <CardContent className="p-4 space-y-2">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Resumen</p>
-            {items.map((i) => (
-              <div key={i.producto_id} className="flex justify-between text-sm text-gray-300">
-                <span>{i.producto_nombre} ×{i.cantidad}</span>
-                <span>{formatCurrency(i.subtotal)}</span>
-              </div>
-            ))}
-            <div className="border-t border-gray-700 pt-2 flex justify-between">
-              <span className="text-white font-semibold">Total</span>
-              <span className="text-2xl font-black text-white">{formatCurrency(total)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-medium">$</span>
+            <input
+              type="number"
+              value={total}
+              onChange={(e) => setTotal(e.target.value)}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              className="w-full pl-8 pr-4 py-4 text-3xl font-black text-gray-900 border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-red-400 transition-colors placeholder:text-gray-200"
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            />
+          </div>
+
+          {total && parseFloat(total) > 0 && (
+            <p className="text-center text-sm text-gray-500">
+              {formatCurrency(parseFloat(total))}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Button
         onClick={handleSubmit}
-        disabled={isPending || items.length === 0}
-        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white h-12 text-base font-semibold gap-2"
+        disabled={isPending || !total || parseFloat(total) <= 0}
+        className="w-full bg-red-600 hover:bg-red-700 text-white h-12 text-base font-semibold gap-2"
       >
         {isPending ? (
           <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
-          <ShoppingCart className="h-5 w-5" />
+          <Save className="h-5 w-5" />
         )}
-        {isPending ? 'Guardando...' : 'Guardar ventas del día'}
+        {isPending ? 'Guardando...' : 'Guardar venta del día'}
       </Button>
     </div>
   )
