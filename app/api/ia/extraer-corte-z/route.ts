@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     }
 
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       messages: [
         {
           role: 'user',
