@@ -64,8 +64,9 @@ export async function eliminarVenta(id: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
-  const { error } = await supabase.from('ventas').delete().eq('id', id).eq('created_by', user.id)
+  const { error, count } = await supabase.from('ventas').delete({ count: 'exact' }).eq('id', id)
   if (error) return { error: error.message }
+  if (count === 0) return { error: 'No se encontró la venta o no tienes permiso' }
   revalidatePath('/ventas')
   revalidatePath('/')
   return { ok: true }
