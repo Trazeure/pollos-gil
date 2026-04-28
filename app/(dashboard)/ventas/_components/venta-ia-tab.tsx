@@ -64,7 +64,7 @@ export function VentaIATab() {
         toast.success(`${validItems.length} productos extraídos`)
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al analizar')
+      toast.error('Error al analizar el ticket. Intenta de nuevo.')
     } finally {
       setAnalyzing(false)
     }

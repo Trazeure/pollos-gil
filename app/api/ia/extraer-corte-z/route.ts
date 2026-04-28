@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gemini-2.0-flash',
       messages: [
         {
           role: 'user',
@@ -59,8 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json(data)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    const keyEnd = (process.env.OPENAI_API_KEY ?? '').slice(-4)
     console.error('Error extraer-corte-z:', msg)
-    return NextResponse.json({ error: `${msg} [key_end:${keyEnd}]` }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
