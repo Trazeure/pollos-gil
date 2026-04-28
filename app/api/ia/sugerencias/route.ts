@@ -71,9 +71,8 @@ Responde ÚNICAMENTE con un JSON válido:
 }`
 
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
       max_tokens: 1000,
     })
 
