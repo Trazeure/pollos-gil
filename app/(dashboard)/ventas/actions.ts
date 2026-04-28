@@ -60,6 +60,17 @@ export async function guardarVenta(_prev: unknown, formData: FormData) {
   return { ok: true }
 }
 
+export async function eliminarVenta(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+  const { error } = await supabase.from('ventas').delete().eq('id', id).eq('created_by', user.id)
+  if (error) return { error: error.message }
+  revalidatePath('/ventas')
+  revalidatePath('/')
+  return { ok: true }
+}
+
 export async function guardarVentaSimple(_prev: unknown, formData: FormData) {
   const fecha = formData.get('fecha') as string
   const totalRaw = formData.get('total') as string

@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VentaForm } from './_components/venta-form'
 import { VentaIATab } from './_components/venta-ia-tab'
+import { VentaDeleteButton } from './_components/venta-delete-button'
 import { TrendingUp, Sparkles } from 'lucide-react'
 
 export default async function VentasPage() {
@@ -14,9 +15,12 @@ export default async function VentasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: historial }] = await Promise.all([
-    supabase.from('ventas').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }).limit(10),
-  ])
+  const { data: historial } = await supabase
+    .from('ventas')
+    .select('*')
+    .order('fecha', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(20)
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const totalHoy = historial?.filter((v) => v.fecha === today).reduce((s, v) => s + (v.total ?? 0), 0) ?? 0
@@ -42,7 +46,6 @@ export default async function VentasPage() {
         </Card>
       )}
 
-      {/* Tabs Manual / IA */}
       <Tabs defaultValue="manual">
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="manual" className="flex-1 sm:flex-none">
@@ -63,26 +66,24 @@ export default async function VentasPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Historial */}
       {historial && historial.length > 0 && (
         <div>
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-            Últimas ventas
+            Últimas 20 ventas
           </h2>
           <Card className="border-0 shadow-sm overflow-hidden">
             <div className="divide-y">
               {historial.map((venta) => {
                 const items = (venta.items as { producto_nombre: string; cantidad: number }[]) ?? []
                 const isIA = venta.metodo === 'foto_ia'
+                const fechaLabel = format(parseISO(venta.fecha), "EEEE d 'de' MMMM", { locale: es })
                 return (
-                  <div key={venta.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
-                    <div>
+                  <div key={venta.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 gap-2">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900 capitalize">
-                          {format(parseISO(venta.fecha), "EEEE d 'de' MMMM", { locale: es })}
-                        </p>
+                        <p className="text-sm font-medium text-gray-900 capitalize truncate">{fechaLabel}</p>
                         {isIA && (
-                          <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                          <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shrink-0">
                             <Sparkles size={10} />IA
                           </span>
                         )}
@@ -94,9 +95,10 @@ export default async function VentasPage() {
                         </p>
                       )}
                     </div>
-                    <p className="text-sm font-bold text-gray-900 shrink-0 ml-3">
-                      {formatCurrency(venta.total)}
-                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <p className="text-sm font-bold text-gray-900">{formatCurrency(venta.total)}</p>
+                      <VentaDeleteButton id={venta.id} fecha={fechaLabel} />
+                    </div>
                   </div>
                 )
               })}
