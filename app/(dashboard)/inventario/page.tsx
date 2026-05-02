@@ -7,47 +7,48 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { RecibimientoForm } from './_components/recibimiento-form'
 import { HistorialDeleteButton } from './_components/historial-delete-button'
+import { FechaSelector } from './_components/fecha-selector'
 import { Package, TrendingUp, Calendar, FileDown } from 'lucide-react'
 
 type RecibimientoItem = { tipo: string; kilos: number; precio_kg: number; subtotal: number; descripcion?: string }
 
-export default async function InventarioPage() {
+export default async function InventarioPage({
+  searchParams,
+}: {
+  searchParams: { fecha?: string }
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const today = format(new Date(), 'yyyy-MM-dd')
-
-  const { data: hoy } = await supabase
-    .from('recibimientos')
-    .select('*, recibimiento_items(*)')
-    .eq('fecha', today)
-    .single()
-
-  const { data: historial } = await supabase
-    .from('recibimientos')
-    .select('*, recibimiento_items(*)')
-    .order('fecha', { ascending: false })
-    .limit(14)
+  const fechaSeleccionada = searchParams?.fecha && searchParams.fecha <= today ? searchParams.fecha : today
 
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
-  const { data: semana } = await supabase
-    .from('recibimientos')
-    .select('total_dia')
-    .gte('fecha', weekStart)
-    .lte('fecha', weekEnd)
+
+  const [{ data: selectedRec }, { data: hoyStats }, { data: historial }, { data: semana }] = await Promise.all([
+    supabase.from('recibimientos').select('*, recibimiento_items(*)').eq('fecha', fechaSeleccionada).single(),
+    fechaSeleccionada !== today
+      ? supabase.from('recibimientos').select('total_dia').eq('fecha', today).single()
+      : { data: null },
+    supabase.from('recibimientos').select('*, recibimiento_items(*)').order('fecha', { ascending: false }).limit(14),
+    supabase.from('recibimientos').select('total_dia').gte('fecha', weekStart).lte('fecha', weekEnd),
+  ])
 
   const totalSemana = semana?.reduce((a, r) => a + (r.total_dia ?? 0), 0) ?? 0
+  const totalHoy = fechaSeleccionada === today
+    ? (selectedRec?.total_dia ?? 0)
+    : (hoyStats?.total_dia ?? 0)
 
   const findItem = (tipo: string) =>
-    (hoy?.recibimiento_items as RecibimientoItem[] | undefined)?.find((i) => i.tipo === tipo)
+    (selectedRec?.recibimiento_items as RecibimientoItem[] | undefined)?.find((i) => i.tipo === tipo)
 
   const otrasItem = findItem('otras')
 
-  const existing = hoy
+  const existing = selectedRec
     ? {
-        fecha: hoy.fecha,
+        fecha: selectedRec.fecha,
         menudencia_kilos: findItem('menudencia')?.kilos ?? 0,
         menudencia_precio: findItem('menudencia')?.precio_kg ?? 0,
         seara_kilos: findItem('seara')?.kilos ?? 0,
@@ -59,9 +60,12 @@ export default async function InventarioPage() {
       }
     : undefined
 
+  const diaLabel = fechaSeleccionada === today
+    ? 'hoy'
+    : format(parseISO(fechaSeleccionada), "EEEE d 'de' MMMM", { locale: es }).toLowerCase()
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Inventario</h1>
         <p className="text-sm text-gray-500 mt-0.5 capitalize">
@@ -69,7 +73,6 @@ export default async function InventarioPage() {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4">
@@ -77,7 +80,7 @@ export default async function InventarioPage() {
               <Package className="h-4 w-4 text-red-500" />
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hoy</p>
             </div>
-            <p className="text-xl font-bold text-gray-900">{formatCurrency(hoy?.total_dia ?? 0)}</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(totalHoy)}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm">
@@ -100,15 +103,14 @@ export default async function InventarioPage() {
         </Card>
       </div>
 
-      {/* Form */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">
-          {hoy ? '✏️ Editar recibimiento de hoy' : '📋 Registrar recibimiento de hoy'}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-700">
+          {existing ? `✏️ Editar recibimiento de ${diaLabel}` : `📋 Registrar recibimiento de ${diaLabel}`}
         </h2>
-        <RecibimientoForm fecha={today} existing={existing} />
+        <FechaSelector fecha={fechaSeleccionada} max={today} />
+        <RecibimientoForm key={fechaSeleccionada} fecha={fechaSeleccionada} existing={existing} />
       </div>
 
-      {/* Historial */}
       {historial && historial.length > 0 && (
         <div>
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -118,12 +120,12 @@ export default async function InventarioPage() {
             <div className="divide-y">
               {historial.map((rec) => {
                 const items = (rec.recibimiento_items ?? []) as RecibimientoItem[]
-                const fechaLabel = format(parseISO(rec.fecha), "EEEE d 'de' MMMM", { locale: es })
+                const recFechaLabel = format(parseISO(rec.fecha), "EEEE d 'de' MMMM", { locale: es })
                 return (
                   <div key={rec.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-900 capitalize">
-                        {fechaLabel}
+                        {recFechaLabel}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5 truncate">
                         {items
@@ -143,7 +145,7 @@ export default async function InventarioPage() {
                           <FileDown className="h-3 w-3" />PDF
                         </a>
                       </Button>
-                      <HistorialDeleteButton id={rec.id} fecha={fechaLabel} />
+                      <HistorialDeleteButton id={rec.id} fecha={recFechaLabel} />
                     </div>
                   </div>
                 )

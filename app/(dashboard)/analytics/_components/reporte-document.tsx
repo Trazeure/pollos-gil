@@ -55,9 +55,69 @@ const S = StyleSheet.create({
 
 function mxn(n: number) { return `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
 
+function trunc(s: string, max: number) { return s.length > max ? s.slice(0, max - 1) + '…' : s }
+
+function BarChart({ detalles }: { detalles: { label: string; ventas: number; gastos: number }[] }) {
+  const maxVal = Math.max(...detalles.flatMap(d => [d.ventas, d.gastos]), 1)
+  const toFlex = (v: number) => Math.max((v / maxVal) * 100, 0.5)
+
+  return (
+    <View>
+      {/* Legend */}
+      <View style={{ flexDirection: 'row', gap: 16, marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <View style={{ width: 12, height: 7, backgroundColor: '#DC2626', borderRadius: 2 }} />
+          <Text style={{ fontSize: 7.5, color: '#374151' }}>Ventas</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <View style={{ width: 12, height: 7, backgroundColor: '#3B82F6', borderRadius: 2 }} />
+          <Text style={{ fontSize: 7.5, color: '#374151' }}>Gastos (inventario)</Text>
+        </View>
+      </View>
+
+      {/* Bar rows */}
+      {detalles.map((d, i) => {
+        const vFlex = toFlex(d.ventas)
+        const gFlex = toFlex(d.gastos)
+        const isEven = i % 2 === 0
+        return (
+          <View
+            key={i}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 5,
+              paddingHorizontal: 6,
+              backgroundColor: isEven ? '#FFFFFF' : '#F9FAFB',
+              borderRadius: 3,
+            }}
+          >
+            <Text style={{ width: 68, fontSize: 6.5, color: '#374151' }}>{trunc(d.label, 16)}</Text>
+            <View style={{ flex: 1, gap: 3 }}>
+              {/* Ventas bar */}
+              <View style={{ flexDirection: 'row', height: 7 }}>
+                <View style={{ flex: vFlex, height: 7, backgroundColor: '#DC2626', borderRadius: 2 }} />
+                <View style={{ flex: 100 - vFlex, height: 7 }} />
+              </View>
+              {/* Gastos bar */}
+              <View style={{ flexDirection: 'row', height: 7 }}>
+                <View style={{ flex: gFlex, height: 7, backgroundColor: '#3B82F6', borderRadius: 2 }} />
+                <View style={{ flex: 100 - gFlex, height: 7 }} />
+              </View>
+            </View>
+            <View style={{ width: 64, alignItems: 'flex-end', gap: 2 }}>
+              <Text style={{ fontSize: 7, color: '#15803D', fontFamily: 'Helvetica-Bold' }}>{mxn(d.ventas)}</Text>
+              <Text style={{ fontSize: 6.5, color: '#1D4ED8' }}>{mxn(d.gastos)}</Text>
+            </View>
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
 export function ReporteDocument({ data }: { data: ReporteData }) {
   const { periodoLabel, generadoEn, resumen, detalles, topProductos } = data
-  const maxVentas = Math.max(...detalles.map(d => d.ventas), 1)
   const maxProd = Math.max(...topProductos.map(p => p.monto), 1)
 
   return (
@@ -121,6 +181,14 @@ export function ReporteDocument({ data }: { data: ReporteData }) {
           </View>
         </View>
 
+        {/* Chart */}
+        {detalles.length > 0 && (
+          <>
+            <Text style={S.sectionTitle}>Gráfica ventas vs. gastos</Text>
+            <BarChart detalles={detalles} />
+          </>
+        )}
+
         {/* Detalles por período */}
         {detalles.length > 0 && (
           <>
@@ -134,6 +202,7 @@ export function ReporteDocument({ data }: { data: ReporteData }) {
             </View>
             {detalles.map((d, i) => {
               const margen = d.ventas > 0 ? (d.utilidad / d.ventas) * 100 : 0
+              const maxVentas = Math.max(...detalles.map(x => x.ventas), 1)
               const barW = Math.round((d.ventas / maxVentas) * 100)
               return (
                 <View key={i} style={i % 2 === 0 ? S.tableRow : S.tableRowAlt}>
