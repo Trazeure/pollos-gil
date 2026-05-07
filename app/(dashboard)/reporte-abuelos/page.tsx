@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns'
+import { format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, startOfWeek, endOfWeek, subWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ReporteAbuelosClient } from './_components/reporte-abuelos-client'
 import { Heart } from 'lucide-react'
@@ -15,6 +15,10 @@ export default async function ReporteAbuelosPage() {
   const yesterday = format(subDays(now, 1), 'yyyy-MM-dd')
   const mesInicio = format(startOfMonth(now), 'yyyy-MM-dd')
   const mesFin = format(endOfMonth(now), 'yyyy-MM-dd')
+  const semanaInicio = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const semanaFin = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const semPasadaInicio = format(startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const semPasadaFin = format(endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }), 'yyyy-MM-dd')
   const anioInicio = format(startOfYear(now), 'yyyy-MM-dd')
   const anioFin = format(endOfYear(now), 'yyyy-MM-dd')
   const hace6m = format(subMonths(now, 5), 'yyyy-MM-dd').substring(0, 7) + '-01'
@@ -24,6 +28,10 @@ export default async function ReporteAbuelosPage() {
     { data: gastosHoy },
     { data: ventasAyer },
     { data: gastosAyer },
+    { data: ventasSemana },
+    { data: gastosSemana },
+    { data: ventasSemPasada },
+    { data: gastosSemPasada },
     { data: ventasMes },
     { data: gastosMes },
     { data: ventasAnio },
@@ -35,6 +43,10 @@ export default async function ReporteAbuelosPage() {
     supabase.from('recibimientos').select('total_dia').eq('fecha', today),
     supabase.from('ventas').select('total').eq('fecha', yesterday),
     supabase.from('recibimientos').select('total_dia').eq('fecha', yesterday),
+    supabase.from('ventas').select('total').gte('fecha', semanaInicio).lte('fecha', semanaFin),
+    supabase.from('recibimientos').select('total_dia').gte('fecha', semanaInicio).lte('fecha', semanaFin),
+    supabase.from('ventas').select('total').gte('fecha', semPasadaInicio).lte('fecha', semPasadaFin),
+    supabase.from('recibimientos').select('total_dia').gte('fecha', semPasadaInicio).lte('fecha', semPasadaFin),
     supabase.from('ventas').select('total').gte('fecha', mesInicio).lte('fecha', mesFin),
     supabase.from('recibimientos').select('total_dia').gte('fecha', mesInicio).lte('fecha', mesFin),
     supabase.from('ventas').select('total').gte('fecha', anioInicio).lte('fecha', anioFin),
@@ -68,6 +80,10 @@ export default async function ReporteAbuelosPage() {
     gastos: mesGastosMap[m] ?? 0,
   }))
 
+  const semVentas = sum(ventasSemana)
+  const semGastos = sum(gastosSemana)
+  const semPasadaVentas = sum(ventasSemPasada)
+  const semPasadaGastos = sum(gastosSemPasada)
   const mesVentas = sum(ventasMes)
   const mesGastos = sum(gastosMes)
   const anioVentas = sum(ventasAnio)
@@ -93,6 +109,10 @@ export default async function ReporteAbuelosPage() {
           hoyGastos,
           hoyGanancia: hoyVentas - hoyGastos,
           ayerGanancia: ayerVentas - ayerGastos,
+          semVentas,
+          semGastos,
+          semGanancia: semVentas - semGastos,
+          semPasadaGanancia: semPasadaVentas - semPasadaGastos,
           mesVentas,
           mesGastos,
           mesGanancia: mesVentas - mesGastos,

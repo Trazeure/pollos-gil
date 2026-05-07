@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     const { searchParams } = new URL(req.url)
-    const tipo = (searchParams.get('tipo') ?? 'diario') as 'diario' | 'mensual' | 'anual'
+    const tipo = (searchParams.get('tipo') ?? 'diario') as 'diario' | 'semanal' | 'mensual' | 'anual'
 
     const now = new Date()
     let reporteData: ReporteAbuelosData
@@ -62,6 +62,40 @@ export async function GET(req: Request) {
         ayerGastos,
         ayerGanancia: ayerVentas - ayerGastos,
         periodos: [],
+      }
+    } else if (tipo === 'semanal') {
+      const desde = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+      const hasta = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+      const semLabel = `Semana del ${format(startOfWeek(now, { weekStartsOn: 1 }), "d 'de' MMMM", { locale: es })} al ${format(endOfWeek(now, { weekStartsOn: 1 }), "d 'de' MMMM 'de' yyyy", { locale: es })}`
+
+      const [{ data: ventas }, { data: gastos }] = await Promise.all([
+        supabase.from('ventas').select('fecha, total').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+        supabase.from('recibimientos').select('fecha, total_dia').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
+      ])
+
+      const ventasMap: Record<string, number> = {}
+      const gastosMap: Record<string, number> = {}
+      ventas?.forEach(v => { ventasMap[v.fecha] = (ventasMap[v.fecha] ?? 0) + v.total })
+      gastos?.forEach(r => { gastosMap[r.fecha] = (gastosMap[r.fecha] ?? 0) + r.total_dia })
+
+      const allKeys = [...new Set([...Object.keys(ventasMap), ...Object.keys(gastosMap)])].sort()
+      const periodos = allKeys.map(k => ({
+        label: format(new Date(k + 'T12:00:00'), "EEEE d 'de' MMMM", { locale: es }).replace(/^\w/, c => c.toUpperCase()),
+        ventas: ventasMap[k] ?? 0,
+        gastos: gastosMap[k] ?? 0,
+      }))
+
+      const totalVentas = periodos.reduce((s, p) => s + p.ventas, 0)
+      const totalGastos = periodos.reduce((s, p) => s + p.gastos, 0)
+
+      reporteData = {
+        tipo: 'mensual',
+        periodoLabel: semLabel,
+        generadoEn: format(now, "d 'de' MMMM yyyy, HH:mm", { locale: es }),
+        totalVentas,
+        totalGastos,
+        totalGanancia: totalVentas - totalGastos,
+        periodos,
       }
     } else if (tipo === 'mensual') {
       const desde = format(startOfMonth(now), 'yyyy-MM-dd')
@@ -162,7 +196,8 @@ export async function GET(req: Request) {
     ) as unknown as ReactElement<DocumentProps, string | JSXElementConstructor<unknown>>
 
     const buffer = await renderToBuffer(element)
-    const filename = `reporte-familia-pollos-gil-${tipo}-${format(now, 'yyyy-MM-dd')}.pdf`
+    const tipoNombre = tipo === 'semanal' ? 'semanal' : tipo
+    const filename = `reporte-familia-pollos-gil-${tipoNombre}-${format(now, 'yyyy-MM-dd')}.pdf`
 
     return new Response(buffer as unknown as BodyInit, {
       headers: {

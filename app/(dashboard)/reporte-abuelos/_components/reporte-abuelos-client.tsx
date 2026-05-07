@@ -10,6 +10,10 @@ interface Props {
     hoyGastos: number
     hoyGanancia: number
     ayerGanancia: number
+    semVentas: number
+    semGastos: number
+    semGanancia: number
+    semPasadaGanancia: number
     mesVentas: number
     mesGastos: number
     mesGanancia: number
@@ -33,7 +37,7 @@ function GananciaCard({
   ventas: number
   gastos: number
   ganancia: number
-  tipo: 'diario' | 'mensual' | 'anual'
+  tipo: 'diario' | 'semanal' | 'mensual' | 'anual'
 }) {
   const positivo = ganancia >= 0
 
@@ -102,28 +106,47 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 export function ReporteAbuelosClient({ resumen, tendencia }: Props) {
   const hoyDiff = resumen.hoyGanancia - resumen.ayerGanancia
   const mejoro = hoyDiff >= 0
+  const semDiff = resumen.semGanancia - resumen.semPasadaGanancia
+  const semMejoro = semDiff >= 0
 
   return (
     <div className="space-y-8">
-      {/* Comparison note for today */}
-      {resumen.ayerGanancia !== 0 && (
-        <div className={`flex items-center gap-3 rounded-xl border-2 p-4 ${mejoro ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
-          <span className={`text-3xl font-black ${mejoro ? 'text-green-600' : 'text-amber-600'}`}>
-            {mejoro ? '↑' : '↓'}
-          </span>
-          <div>
-            <p className={`font-bold ${mejoro ? 'text-green-800' : 'text-amber-800'}`}>
-              {mejoro
-                ? `Hoy fue ${formatCurrency(Math.abs(hoyDiff))} mejor que ayer`
-                : `Hoy fue ${formatCurrency(Math.abs(hoyDiff))} menos que ayer`}
-            </p>
-            <p className="text-sm text-gray-500">Ayer quedaron: {formatCurrency(resumen.ayerGanancia)}</p>
+      {/* Comparison notes row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {resumen.ayerGanancia !== 0 && (
+          <div className={`flex items-center gap-3 rounded-xl border-2 p-4 ${mejoro ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
+            <span className={`text-3xl font-black ${mejoro ? 'text-green-600' : 'text-amber-600'}`}>
+              {mejoro ? '↑' : '↓'}
+            </span>
+            <div>
+              <p className={`font-bold text-sm ${mejoro ? 'text-green-800' : 'text-amber-800'}`}>
+                {mejoro
+                  ? `Hoy fue ${formatCurrency(Math.abs(hoyDiff))} mejor que ayer`
+                  : `Hoy fue ${formatCurrency(Math.abs(hoyDiff))} menos que ayer`}
+              </p>
+              <p className="text-xs text-gray-500">Ayer quedaron: {formatCurrency(resumen.ayerGanancia)}</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {resumen.semPasadaGanancia !== 0 && (
+          <div className={`flex items-center gap-3 rounded-xl border-2 p-4 ${semMejoro ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
+            <span className={`text-3xl font-black ${semMejoro ? 'text-green-600' : 'text-amber-600'}`}>
+              {semMejoro ? '↑' : '↓'}
+            </span>
+            <div>
+              <p className={`font-bold text-sm ${semMejoro ? 'text-green-800' : 'text-amber-800'}`}>
+                {semMejoro
+                  ? `Esta semana va ${formatCurrency(Math.abs(semDiff))} mejor que la pasada`
+                  : `Esta semana va ${formatCurrency(Math.abs(semDiff))} menos que la pasada`}
+              </p>
+              <p className="text-xs text-gray-500">Semana pasada quedaron: {formatCurrency(resumen.semPasadaGanancia)}</p>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* Three main cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Four main cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <GananciaCard
           titulo="Hoy"
           subtitulo="Reporte del día"
@@ -131,6 +154,14 @@ export function ReporteAbuelosClient({ resumen, tendencia }: Props) {
           gastos={resumen.hoyGastos}
           ganancia={resumen.hoyGanancia}
           tipo="diario"
+        />
+        <GananciaCard
+          titulo="Esta Semana"
+          subtitulo="Reporte semanal"
+          ventas={resumen.semVentas}
+          gastos={resumen.semGastos}
+          ganancia={resumen.semGanancia}
+          tipo="semanal"
         />
         <GananciaCard
           titulo="Este Mes"
