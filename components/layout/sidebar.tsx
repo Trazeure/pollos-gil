@@ -17,6 +17,7 @@ import {
   Calendar,
   BarChart3,
   Lightbulb,
+  Heart,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { href: '/calendario', label: 'Calendario', icon: Calendar },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/sugerencias', label: 'Sugerencias IA', icon: Lightbulb },
+  { href: '/reporte-abuelos', label: 'Reporte Familia', icon: Heart },
 ]
 
 interface SidebarProps {
