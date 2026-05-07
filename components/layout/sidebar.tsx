@@ -18,6 +18,7 @@ import {
   BarChart3,
   Lightbulb,
   Heart,
+  ShoppingCart,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { href: '/calendario', label: 'Calendario', icon: Calendar },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/sugerencias', label: 'Sugerencias IA', icon: Lightbulb },
+  { href: '/sugerencias-inventario', label: 'Compras IA', icon: ShoppingCart },
   { href: '/reporte-abuelos', label: 'Reporte Familia', icon: Heart },
 ]
 
