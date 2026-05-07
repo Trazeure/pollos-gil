@@ -154,13 +154,13 @@ export async function GET() {
     // ── Stock estimation ──────────────────────────────────────────────────────
     type StockInfo = {
       ultimaFecha: string; ultimosKilos: number; precioUlt: number
-      totalKilos: number; compras: number
+      totalKilos: number; compras: number; minPedido: number; maxPedido: number
     }
     const tipos = ['menudencia', 'seara', 'pollo'] as const
     const stock: Record<string, StockInfo> = {
-      menudencia: { ultimaFecha: '', ultimosKilos: 0, precioUlt: 0, totalKilos: 0, compras: 0 },
-      seara:      { ultimaFecha: '', ultimosKilos: 0, precioUlt: 0, totalKilos: 0, compras: 0 },
-      pollo:      { ultimaFecha: '', ultimosKilos: 0, precioUlt: 0, totalKilos: 0, compras: 0 },
+      menudencia: { ultimaFecha: '', ultimosKilos: 0, precioUlt: 0, totalKilos: 0, compras: 0, minPedido: Infinity, maxPedido: 0 },
+      seara:      { ultimaFecha: '', ultimosKilos: 0, precioUlt: 0, totalKilos: 0, compras: 0, minPedido: Infinity, maxPedido: 0 },
+      pollo:      { ultimaFecha: '', ultimosKilos: 0, precioUlt: 0, totalKilos: 0, compras: 0, minPedido: Infinity, maxPedido: 0 },
     }
 
     recibimientos?.forEach(r => {
@@ -170,6 +170,10 @@ export async function GET() {
         const s = stock[item.tipo]
         s.totalKilos += item.kilos
         s.compras++
+        if (item.kilos > 0) {
+          s.minPedido = Math.min(s.minPedido, item.kilos)
+          s.maxPedido = Math.max(s.maxPedido, item.kilos)
+        }
         if (!s.ultimaFecha || r.fecha > s.ultimaFecha) {
           s.ultimaFecha = r.fecha
           s.ultimosKilos = item.kilos
@@ -178,28 +182,32 @@ export async function GET() {
       })
     })
 
-    const stockEstimado: Record<string, number> = {}
-    const semanas8 = recibimientos ? Math.ceil(recibimientos.length / 7) || 8 : 8
+    // 90 days / 7 = ~12.86 weeks — use real elapsed weeks, NOT record count
+    const numSemanas = 90 / 7
 
+    const stockEstimado: Record<string, number> = {}
     for (const tipo of tipos) {
       const s = stock[tipo]
       if (!s.ultimaFecha) { stockEstimado[tipo] = 0; continue }
       const diasDesde = Math.floor((new Date(today).getTime() - new Date(s.ultimaFecha).getTime()) / 86400000)
-      const promDiario = (s.totalKilos / semanas8) / 7
+      const promDiario = (s.totalKilos / numSemanas) / 7
       stockEstimado[tipo] = Math.max(0, Math.round(s.ultimosKilos - diasDesde * promDiario))
     }
 
     const resumenStock = tipos.map(tipo => {
       const s = stock[tipo]
-      const semAvg = s.totalKilos / semanas8
+      const semAvg = s.totalKilos / numSemanas
       const diasDesde = s.ultimaFecha
         ? Math.floor((new Date(today).getTime() - new Date(s.ultimaFecha).getTime()) / 86400000)
         : null
+      const minP = s.minPedido === Infinity ? 0 : s.minPedido
       return {
         tipo,
         ultimaCompra: s.ultimaFecha ? `hace ${diasDesde} día(s) — ${s.ultimosKilos}kg a $${s.precioUlt}/kg` : 'Sin registros',
         promedioSemanal: Math.round(semAvg),
         stockEstimado: stockEstimado[tipo],
+        rangoPedido: s.compras > 0 ? `${minP}–${s.maxPedido}kg (en ${s.compras} pedidos registrados)` : 'Sin datos',
+        pedidoTipico: s.compras > 0 ? Math.round(s.totalKilos / s.compras) : 0,
       }
     })
 
@@ -229,17 +237,22 @@ ${patronesQuincena.map(p => `${p.nombre}: $${p.promedio.toLocaleString()} promed
 === STOCK ESTIMADO ACTUAL ===
 ${resumenStock.map(s => `${s.tipo}: ~${s.stockEstimado}kg restantes | Última compra: ${s.ultimaCompra} | Promedio semanal: ${s.promedioSemanal}kg/semana`).join('\n')}
 
+=== RANGOS REALES DE PEDIDO (historial de compras) ===
+${resumenStock.map(s => `${s.tipo}: pedido típico ${s.pedidoTipico}kg | rango histórico: ${s.rangoPedido}`).join('\n')}
+IMPORTANTE: Estos son los rangos reales de compra de este negocio. Cualquier sugerencia fuera de este rango es un error.
+
 === TENDENCIA RECIENTE ===
 Últimos 7 días: $${Math.round(avgUlt7).toLocaleString()} promedio diario
 7 días anteriores: $${Math.round(avgPrev7).toLocaleString()} promedio diario
 Tendencia: ${tendenciaPct >= 0 ? '+' : ''}${tendenciaPct.toFixed(1)}% ${tendenciaPct >= 5 ? '(creciendo)' : tendenciaPct <= -5 ? '(bajando)' : '(estable)'}
 
 === REGLAS DE DECISIÓN ===
+⚠️ RESTRICCIÓN CRÍTICA: Nunca sugerir kilos fuera del rango histórico de pedido mostrado arriba. Si el rango de pollo es 150–200kg, sugerir DENTRO de ese rango ajustado por contexto, nunca 245kg ni ninguna cifra fuera del rango. El pedido típico es la referencia base.
 1. Comprar = stock estimado actual es bajo (< 1 día de consumo) O mañana es día de alta demanda
 2. Calor extremo (+36°C) sube demanda de pollo fresco ~15-20%
-3. Día de quincena: comprar ~35-40% más de lo normal
-4. Fondo de quincena: comprar ~15-20% menos de lo normal
-5. Festivo o víspera festiva: comprar 25-50% más según el festivo
+3. Día de quincena: comprar ~35-40% más del pedido típico (sin exceder el máximo histórico)
+4. Fondo de quincena: comprar ~15-20% menos del pedido típico (sin bajar del mínimo histórico)
+5. Festivo o víspera festiva: comprar 25-50% más según el festivo (sin exceder el máximo histórico)
 6. Sábados y domingos: suelen ser los días de mayor venta
 7. No sugerir comprar lo que ya tienen suficiente en stock
 8. El objetivo: cero desperdicio y nunca quedarse sin producto
