@@ -75,8 +75,8 @@ function CompraCard({ tipo, item, stockActual }: {
 
         <div className="bg-white rounded-lg p-3 space-y-1.5 border border-gray-100">
           <div className="flex justify-between text-xs text-gray-500">
-            <span>Stock actual estimado</span>
-            <span className="font-semibold text-gray-700">~{stockActual} kg</span>
+            <span>Stock actual</span>
+            <span className="font-semibold text-gray-700">{stockActual} kg</span>
           </div>
           <div className="flex justify-between text-xs text-gray-500">
             <span>+ Compra sugerida</span>
@@ -84,7 +84,7 @@ function CompraCard({ tipo, item, stockActual }: {
           </div>
           <div className="border-t border-gray-100 pt-1 flex justify-between text-xs">
             <span className="font-semibold text-gray-600">Total disponible</span>
-            <span className={`font-black ${info.accent}`}>~{totalTras} kg</span>
+            <span className={`font-black ${info.accent}`}>{totalTras} kg</span>
           </div>
         </div>
 
@@ -111,17 +111,58 @@ function ContextChip({ icon: Icon, label, sublabel, style }: {
   )
 }
 
+interface StockInputs {
+  menudencia: string
+  seara: string
+  pollo: string
+}
+
+function StockInput({ label, value, onChange, accent }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  accent: string
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className={`text-xs font-semibold ${accent}`}>{label}</label>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="0"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+        />
+        <span className="text-xs text-gray-400 whitespace-nowrap">kg</span>
+      </div>
+    </div>
+  )
+}
+
 export function SugerenciasInventarioClient() {
   const [data, setData] = useState<SugerenciasInventarioResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showRazonamiento, setShowRazonamiento] = useState(false)
+  const [stock, setStock] = useState<StockInputs>({ menudencia: '', seara: '', pollo: '' })
+
+  function setStockField(field: keyof StockInputs) {
+    return (v: string) => setStock(prev => ({ ...prev, [field]: v }))
+  }
 
   async function generar() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/ia/sugerencias-inventario')
+      const params = new URLSearchParams()
+      if (stock.menudencia !== '') params.set('menudencia', stock.menudencia)
+      if (stock.seara !== '') params.set('seara', stock.seara)
+      if (stock.pollo !== '') params.set('pollo', stock.pollo)
+      const url = `/api/ia/sugerencias-inventario${params.toString() ? '?' + params.toString() : ''}`
+      const res = await fetch(url)
       const json = await res.json()
       if (json.error) throw new Error(json.error)
       setData(json)
@@ -136,6 +177,38 @@ export function SugerenciasInventarioClient() {
 
   return (
     <div className="space-y-6">
+      {/* Stock inputs */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Package className="h-4 w-4 text-gray-500" />
+            <h3 className="text-sm font-semibold text-gray-700">¿Cuánto tienes ahorita?</h3>
+            <span className="text-xs text-gray-400">— stock actual en tu negocio</span>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <StockInput
+              label="Menudencia"
+              value={stock.menudencia}
+              onChange={setStockField('menudencia')}
+              accent="text-orange-600"
+            />
+            <StockInput
+              label="Seara (Pechuga)"
+              value={stock.seara}
+              onChange={setStockField('seara')}
+              accent="text-blue-600"
+            />
+            <StockInput
+              label="Pollo"
+              value={stock.pollo}
+              onChange={setStockField('pollo')}
+              accent="text-yellow-600"
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-3">Pon 0 si ya no queda nada. Puedes dejarlo vacío si no sabes.</p>
+        </CardContent>
+      </Card>
+
       {/* Generate button */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
@@ -250,28 +323,6 @@ export function SugerenciasInventarioClient() {
               </CardContent>
             </Card>
           )}
-
-          {/* Stock reference */}
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Package className="h-4 w-4 text-gray-500" />
-                <h3 className="text-sm font-semibold text-gray-700">Stock estimado actual (antes de comprar)</h3>
-                <span className="text-xs text-gray-400">— basado en última compra y consumo histórico</span>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {(['menudencia', 'seara', 'pollo'] as const).map(tipo => (
-                  <div key={tipo} className="text-center p-3 bg-gray-50 rounded-xl">
-                    <p className="text-xs text-gray-500 capitalize">{TIPO_INFO[tipo].label}</p>
-                    <p className={`text-2xl font-black mt-1 ${TIPO_INFO[tipo].accent}`}>
-                      ~{data.stock_estimado[tipo]}
-                    </p>
-                    <p className="text-xs text-gray-400">kg</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Reasoning collapsible */}
           <Card className="border-0 shadow-sm">

@@ -85,11 +85,18 @@ async function getWeather(): Promise<{ temp: number; descripcion: string; impact
 }
 
 // ── Main handler ───────────────────────────────────────────────────────────────
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url)
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const stockManual: Record<string, number | null> = {
+      menudencia: searchParams.has('menudencia') ? Math.max(0, parseInt(searchParams.get('menudencia')!)) : null,
+      seara:      searchParams.has('seara')      ? Math.max(0, parseInt(searchParams.get('seara')!))      : null,
+      pollo:      searchParams.has('pollo')      ? Math.max(0, parseInt(searchParams.get('pollo')!))      : null,
+    }
 
     const now = new Date()
     const tomorrow = addDays(now, 1)
@@ -187,6 +194,10 @@ export async function GET() {
 
     const stockEstimado: Record<string, number> = {}
     for (const tipo of tipos) {
+      if (stockManual[tipo] !== null) {
+        stockEstimado[tipo] = stockManual[tipo] as number
+        continue
+      }
       const s = stock[tipo]
       if (!s.ultimaFecha) { stockEstimado[tipo] = 0; continue }
       const diasDesde = Math.floor((new Date(today).getTime() - new Date(s.ultimaFecha).getTime()) / 86400000)
@@ -234,8 +245,11 @@ ${promediosDia.map(d => `${d.dia}: $${d.promedio.toLocaleString()} promedio (${d
 === EFECTO QUINCENAL ===
 ${patronesQuincena.map(p => `${p.nombre}: $${p.promedio.toLocaleString()} promedio (${p.registros} registros)`).join('\n')}
 
-=== STOCK ESTIMADO ACTUAL ===
-${resumenStock.map(s => `${s.tipo}: ~${s.stockEstimado}kg restantes | Última compra: ${s.ultimaCompra} | Promedio semanal: ${s.promedioSemanal}kg/semana`).join('\n')}
+=== STOCK ACTUAL ===
+${resumenStock.map(s => {
+  const etiqueta = stockManual[s.tipo] !== null ? 'ingresado manualmente (dato real)' : 'estimado automáticamente (menos confiable)'
+  return `${s.tipo}: ${s.stockEstimado}kg [${etiqueta}] | Última compra: ${s.ultimaCompra} | Promedio semanal: ${s.promedioSemanal}kg/semana`
+}).join('\n')}
 
 === RANGOS REALES DE PEDIDO (historial de compras) ===
 ${resumenStock.map(s => `${s.tipo}: pedido típico ${s.pedidoTipico}kg | rango histórico: ${s.rangoPedido}`).join('\n')}
@@ -284,6 +298,13 @@ Responde ÚNICAMENTE con este JSON (sin texto extra, sin markdown):
     const raw = result.response.text().trim()
     const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
     const data = JSON.parse(cleaned)
+
+    // Ensure kg suggestions are always whole numbers
+    for (const tipo of tipos) {
+      if (data.compras_sugeridas?.[tipo]) {
+        data.compras_sugeridas[tipo].kilos = Math.round(data.compras_sugeridas[tipo].kilos)
+      }
+    }
 
     return NextResponse.json({
       ...data,
