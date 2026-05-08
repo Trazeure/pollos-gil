@@ -1,7 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 
 export interface ReporteAbuelosData {
-  tipo: 'diario' | 'mensual' | 'anual'
+  tipo: 'diario' | 'semanal' | 'mensual' | 'anual'
   periodoLabel: string
   generadoEn: string
   totalVentas: number
@@ -44,7 +44,6 @@ const S = StyleSheet.create({
   boxAmount: { fontSize: 20, fontFamily: 'Helvetica-Bold', textAlign: 'center' },
 
   sectionTitle: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: NEGRO, marginBottom: 12, marginTop: 10 },
-  divider: { borderBottomWidth: 1, borderBottomColor: '#E5E7EB', marginBottom: 16 },
 
   compareRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   compareBox: { flex: 1, backgroundColor: GRIS_FONDO, borderRadius: 6, padding: 14, alignItems: 'center' },
@@ -55,7 +54,6 @@ const S = StyleSheet.create({
   arrowText: { fontSize: 28, fontFamily: 'Helvetica-Bold', textAlign: 'center' },
   arrowLabel: { fontSize: 9, color: GRIS_TEXTO, textAlign: 'center', marginTop: 2 },
 
-  chartRow: { marginBottom: 14 },
   chartLabel: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: NEGRO, marginBottom: 6 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   barType: { width: 60, fontSize: 10, color: GRIS_TEXTO },
@@ -77,14 +75,25 @@ function mxn(n: number) {
   return `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function BarChart({ periodos }: { periodos: { label: string; ventas: number; gastos: number }[] }) {
-  const maxVal = Math.max(...periodos.flatMap(p => [p.ventas, p.gastos]), 1)
+// Summary bar: just 2 rows (total entró / total salió) for the top of non-daily reports
+function SummaryBar({ ventas, gastos }: { ventas: number; gastos: number }) {
+  const maxVal = Math.max(ventas, gastos, 1)
   const toFlex = (v: number) => Math.max((v / maxVal) * 100, 0.5)
+  const ganancia = ventas - gastos
 
   return (
-    <View>
+    <View
+      style={{
+        backgroundColor: '#FAFAFA',
+        borderRadius: 6,
+        padding: 14,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+      }}
+    >
       {/* Legend */}
-      <View style={{ flexDirection: 'row', gap: 20, marginBottom: 14 }}>
+      <View style={{ flexDirection: 'row', gap: 20, marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 14, height: 10, backgroundColor: VERDE, borderRadius: 2 }} />
           <Text style={{ fontSize: 11, color: GRIS_TEXTO }}>Lo que entró (ventas)</Text>
@@ -95,6 +104,45 @@ function BarChart({ periodos }: { periodos: { label: string; ventas: number; gas
         </View>
       </View>
 
+      {/* Ventas bar */}
+      <View style={S.barRow}>
+        <Text style={S.barType}>Lo que entró</Text>
+        <View style={S.barTrack}>
+          <View style={[S.barFill, { flex: toFlex(ventas), backgroundColor: VERDE }]} />
+          <View style={{ flex: 100 - toFlex(ventas) }} />
+        </View>
+        <Text style={[S.barAmount, { color: VERDE }]}>{mxn(ventas)}</Text>
+      </View>
+
+      {/* Gastos bar */}
+      <View style={S.barRow}>
+        <Text style={S.barType}>Lo que salió</Text>
+        <View style={S.barTrack}>
+          <View style={[S.barFill, { flex: toFlex(gastos), backgroundColor: ROJO }]} />
+          <View style={{ flex: 100 - toFlex(gastos) }} />
+        </View>
+        <Text style={[S.barAmount, { color: ROJO }]}>{mxn(gastos)}</Text>
+      </View>
+
+      {/* Net */}
+      <View style={[S.gananciaRow, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
+        <Text style={[S.gananciaLabel, { fontSize: 12, fontFamily: 'Helvetica-Bold', width: 70 }]}>Lo que quedó:</Text>
+        <Text style={[S.gananciaVal, { fontSize: 14, color: ganancia >= 0 ? VERDE : ROJO }]}>
+          {ganancia >= 0 ? '+' : ''}{mxn(ganancia)}
+        </Text>
+      </View>
+    </View>
+  )
+}
+
+function BarChart({ periodos, chartTitle }: { periodos: { label: string; ventas: number; gastos: number }[]; chartTitle: string }) {
+  const maxVal = Math.max(...periodos.flatMap(p => [p.ventas, p.gastos]), 1)
+  const toFlex = (v: number) => Math.max((v / maxVal) * 100, 0.5)
+
+  return (
+    <View>
+      <Text style={S.sectionTitle}>{chartTitle}</Text>
+
       {periodos.map((p, i) => {
         const vFlex = toFlex(p.ventas)
         const gFlex = toFlex(p.gastos)
@@ -102,19 +150,22 @@ function BarChart({ periodos }: { periodos: { label: string; ventas: number; gas
         const isEven = i % 2 === 0
 
         return (
+          // wrap={false} prevents this block from being split across pages
           <View
             key={i}
+            wrap={false}
             style={{
               paddingVertical: 10,
               paddingHorizontal: 10,
               backgroundColor: isEven ? '#FAFAFA' : '#FFFFFF',
               borderRadius: 4,
               marginBottom: 4,
+              borderWidth: 1,
+              borderColor: '#F0F0F0',
             }}
           >
             <Text style={S.chartLabel}>{p.label}</Text>
 
-            {/* Ventas bar */}
             <View style={S.barRow}>
               <Text style={S.barType}>Lo que entró</Text>
               <View style={S.barTrack}>
@@ -124,7 +175,6 @@ function BarChart({ periodos }: { periodos: { label: string; ventas: number; gas
               <Text style={[S.barAmount, { color: VERDE }]}>{mxn(p.ventas)}</Text>
             </View>
 
-            {/* Gastos bar */}
             <View style={S.barRow}>
               <Text style={S.barType}>Lo que salió</Text>
               <View style={S.barTrack}>
@@ -134,7 +184,6 @@ function BarChart({ periodos }: { periodos: { label: string; ventas: number; gas
               <Text style={[S.barAmount, { color: ROJO }]}>{mxn(p.gastos)}</Text>
             </View>
 
-            {/* Net */}
             <View style={S.gananciaRow}>
               <Text style={S.gananciaLabel}>Quedó:</Text>
               <Text style={[S.gananciaVal, { color: ganancia >= 0 ? VERDE : ROJO }]}>
@@ -152,9 +201,23 @@ export function ReporteAbuelosDocument({ data }: { data: ReporteAbuelosData }) {
   const { tipo, periodoLabel, generadoEn, totalVentas, totalGastos, totalGanancia, periodos } = data
   const positivo = totalGanancia >= 0
 
-  const tipoLabel = tipo === 'diario' ? 'Reporte del día' : tipo === 'mensual' ? 'Reporte del mes' : 'Reporte del año'
-  const mainLabel = tipo === 'diario' ? 'Hoy ganaron:' : tipo === 'mensual' ? 'Este mes ganaron:' : 'Este año ganaron:'
-  const chartTitle = tipo === 'mensual' ? 'Cómo estuvo cada semana' : tipo === 'anual' ? 'Cómo estuvo cada mes' : ''
+  const tipoLabel =
+    tipo === 'diario'   ? 'Reporte del día'     :
+    tipo === 'semanal'  ? 'Reporte de la semana' :
+    tipo === 'mensual'  ? 'Reporte del mes'      :
+                          'Reporte del año'
+
+  const mainLabel =
+    tipo === 'diario'   ? 'Este día ganaron:'     :
+    tipo === 'semanal'  ? 'Esta semana ganaron:'  :
+    tipo === 'mensual'  ? 'Este mes ganaron:'     :
+                          'Este año ganaron:'
+
+  const chartTitle =
+    tipo === 'semanal'  ? 'Cómo estuvo cada día'    :
+    tipo === 'mensual'  ? 'Cómo estuvo cada semana' :
+    tipo === 'anual'    ? 'Cómo estuvo cada mes'    :
+                          ''
 
   const ayerGanancia = data.ayerGanancia ?? 0
   const diff = totalGanancia - ayerGanancia
@@ -238,23 +301,23 @@ export function ReporteAbuelosDocument({ data }: { data: ReporteAbuelosData }) {
                 </Text>
               </View>
             </View>
-            {tipo === 'diario' && (
-              <View style={{ backgroundColor: mejoro ? '#F0FFF4' : '#FFF5F5', borderRadius: 6, padding: 12, marginBottom: 16 }}>
-                <Text style={{ fontSize: 13, color: mejoro ? VERDE : ROJO, fontFamily: 'Helvetica-Bold', textAlign: 'center' }}>
-                  {mejoro
-                    ? `Hoy fue ${mxn(Math.abs(diff))} mejor que ayer. ¡Muy bien!`
-                    : `Hoy fue ${mxn(Math.abs(diff))} menos que ayer.`}
-                </Text>
-              </View>
-            )}
+            <View style={{ backgroundColor: mejoro ? '#F0FFF4' : '#FFF5F5', borderRadius: 6, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, color: mejoro ? VERDE : ROJO, fontFamily: 'Helvetica-Bold', textAlign: 'center' }}>
+                {mejoro
+                  ? `Hoy fue ${mxn(Math.abs(diff))} mejor que ayer. ¡Muy bien!`
+                  : `Hoy fue ${mxn(Math.abs(diff))} menos que ayer.`}
+              </Text>
+            </View>
           </>
         )}
 
-        {/* Monthly / Annual chart */}
-        {tipo !== 'diario' && periodos.length > 0 && (
+        {/* Semanal/Mensual/Anual: summary bar + detail chart */}
+        {tipo !== 'diario' && (
           <>
-            <Text style={S.sectionTitle}>{chartTitle}</Text>
-            <BarChart periodos={periodos} />
+            <SummaryBar ventas={totalVentas} gastos={totalGastos} />
+            {periodos.length > 0 && (
+              <BarChart periodos={periodos} chartTitle={chartTitle} />
+            )}
           </>
         )}
 

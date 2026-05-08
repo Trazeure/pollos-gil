@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { ReporteAbuelosDocument, type ReporteAbuelosData } from '@/app/(dashboard)/reporte-abuelos/_components/reporte-abuelos-document'
 import React from 'react'
 import {
-  format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear,
-  startOfWeek, endOfWeek,
+  format, subDays, addDays, startOfMonth, endOfMonth, startOfYear, endOfYear,
+  startOfWeek,
 } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { DocumentProps } from '@react-pdf/renderer'
@@ -64,9 +64,17 @@ export async function GET(req: Request) {
         periodos: [],
       }
     } else if (tipo === 'semanal') {
-      const desde = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      const hasta = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      const semLabel = `Semana del ${format(startOfWeek(now, { weekStartsOn: 1 }), "d 'de' MMMM", { locale: es })} al ${format(endOfWeek(now, { weekStartsOn: 1 }), "d 'de' MMMM 'de' yyyy", { locale: es })}`
+      // Week: Monday to Saturday
+      const startW = startOfWeek(now, { weekStartsOn: 1 })
+      const endW = addDays(startW, 5) // Saturday
+      const desde = format(startW, 'yyyy-MM-dd')
+      const hasta = format(endW, 'yyyy-MM-dd')
+
+      // Label: "del 4 al 10 de mayo de 2026" (same month) or "del 28 de abril al 3 de mayo de 2026"
+      const sameMonth = startW.getMonth() === endW.getMonth()
+      const semLabel = sameMonth
+        ? `Semana del ${format(startW, 'd')} al ${format(endW, "d 'de' MMMM 'de' yyyy", { locale: es })}`
+        : `Semana del ${format(startW, "d 'de' MMMM", { locale: es })} al ${format(endW, "d 'de' MMMM 'de' yyyy", { locale: es })}`
 
       const [{ data: ventas }, { data: gastos }] = await Promise.all([
         supabase.from('ventas').select('fecha, total').gte('fecha', desde).lte('fecha', hasta).order('fecha'),
@@ -89,7 +97,7 @@ export async function GET(req: Request) {
       const totalGastos = periodos.reduce((s, p) => s + p.gastos, 0)
 
       reporteData = {
-        tipo: 'mensual',
+        tipo: 'semanal',
         periodoLabel: semLabel,
         generadoEn: format(now, "d 'de' MMMM yyyy, HH:mm", { locale: es }),
         totalVentas,
@@ -123,8 +131,8 @@ export async function GET(req: Request) {
 
       const allKeys = [...new Set([...Object.keys(ventasMap), ...Object.keys(gastosMap)])].sort()
       const periodos = allKeys.map((k, i) => {
-        const d = new Date(k + 'T12:00:00')
-        const end = endOfWeek(d, { weekStartsOn: 1 })
+        const d = new Date(k + 'T12:00:00') // Monday
+        const end = addDays(d, 5) // Saturday
         return {
           label: `Semana ${i + 1}  (${format(d, 'd MMM', { locale: es })} – ${format(end, 'd MMM', { locale: es })})`,
           ventas: ventasMap[k] ?? 0,
