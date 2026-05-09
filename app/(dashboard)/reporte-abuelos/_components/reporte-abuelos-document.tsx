@@ -323,9 +323,6 @@ export function ReporteAbuelosDocument({ data }: { data: ReporteAbuelosData }) {
 
         {/* Footer */}
         <View style={S.footer} fixed>
-          <Text style={S.footerNote}>
-            Si tienen dudas, llamen a Luis  ·  Este reporte lo genera el sistema automáticamente
-          </Text>
           <View style={S.footerLine}>
             <Text style={S.footerText}>Pollos Gil — Sistema de gestión</Text>
             <Text style={S.footerText} render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />
